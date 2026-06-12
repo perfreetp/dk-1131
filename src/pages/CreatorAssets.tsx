@@ -27,7 +27,7 @@ export function CreatorAssets() {
     license_info: '',
   });
 
-  const { assets, addAsset } = useAssetStore();
+  const { assets, addAsset, removeAsset } = useAssetStore();
   const creatorAssets = assets.filter(a => a.creator_id === '1');
 
   const filteredAssets = filterStatus === 'all' 
@@ -61,8 +61,8 @@ export function CreatorAssets() {
       downloads: 0,
       likes: 0,
       status: 'pending',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: new Date().toLocaleString(),
+      updated_at: new Date().toLocaleString(),
       creator: mockUsers[0],
     };
 
@@ -94,6 +94,12 @@ export function CreatorAssets() {
       price: '',
       license_info: '',
     });
+  };
+
+  const handleDeleteAsset = (id: string) => {
+    if (confirm('确定删除该素材吗？')) {
+      removeAsset(id);
+    }
   };
 
   return (
@@ -169,58 +175,80 @@ export function CreatorAssets() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredAssets.map((asset) => (
-              <div key={asset.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div className="relative aspect-square">
-                  <img
-                    src={asset.preview_url}
-                    alt={asset.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity" />
-                  
-                  <div className="absolute bottom-3 left-3 right-3 flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                    <button className="flex-1 flex items-center justify-center gap-2 bg-white/90 text-gray-700 py-2 rounded-lg hover:bg-white transition-colors">
-                      <Eye className="w-4 h-4" />
-                      <span className="text-sm font-medium">预览</span>
-                    </button>
-                    <button className="flex-1 flex items-center justify-center gap-2 bg-white/90 text-gray-700 py-2 rounded-lg hover:bg-white transition-colors">
-                      <Edit2 className="w-4 h-4" />
-                      <span className="text-sm font-medium">编辑</span>
-                    </button>
-                    <button className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <span className={`absolute top-3 left-3 px-2 py-1 text-xs font-medium rounded-full ${
-                    asset.status === 'approved' ? 'bg-green-500 text-white' :
-                    asset.status === 'pending' ? 'bg-yellow-500 text-white' :
-                    'bg-red-500 text-white'
-                  }`}>
-                    {asset.status === 'approved' ? '已通过' :
-                     asset.status === 'pending' ? '审核中' : '已拒绝'}
-                  </span>
-                </div>
-
-                <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 line-clamp-1">{asset.title}</h3>
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <span>{asset.format}</span>
-                      <span>·</span>
-                      <span>{asset.downloads} 下载</span>
-                    </div>
-                    <span className="text-accent-500 font-bold">¥{asset.price}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">封面</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">标题</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">分类</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">格式</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">价格</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">授权说明</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">状态</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredAssets.map((asset) => (
+                  <tr key={asset.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <img
+                        src={asset.preview_url}
+                        alt={asset.title}
+                        className="w-16 h-16 rounded-lg object-cover"
+                      />
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900 line-clamp-1">{asset.title}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-gray-600">{asset.category}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-gray-600">{asset.format}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-accent-500 font-bold">¥{asset.price}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-gray-600 text-sm line-clamp-1">{asset.license_info}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                        asset.status === 'approved' ? 'bg-green-100 text-green-600' :
+                        asset.status === 'pending' ? 'bg-yellow-100 text-yellow-600' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        {asset.status === 'approved' ? '已通过' :
+                         asset.status === 'pending' ? '审核中' : '已拒绝'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                          <Eye className="w-4 h-4 text-gray-600" />
+                        </button>
+                        <button className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                          <Edit2 className="w-4 h-4 text-gray-600" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteAsset(asset.id)}
+                          className="p-2 border border-gray-200 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {filteredAssets.length === 0 && (
             <div className="text-center py-16">
+              <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">暂无素材</p>
             </div>
           )}

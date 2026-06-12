@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, X, ArrowUpDown } from 'lucide-react';
+import { Search, X, ArrowUpDown, Trash2 } from 'lucide-react';
 import { AssetCard } from '@/components/AssetCard';
 import { mockAssets } from '@/data/mockData';
-import { useFilterStore } from '@/store/filterStore';
+import { useSearchStore } from '@/store/searchStore';
 
 export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [localQuery, setLocalQuery] = useState('');
-  const { filters, setFilters } = useFilterStore();
+  const { searchHistory, currentFilters, setFilters, addToHistory, clearHistory } = useSearchStore();
 
   const query = searchParams.get('q') || '';
 
@@ -20,6 +20,7 @@ export function SearchPage() {
     e?.preventDefault();
     if (localQuery.trim()) {
       setSearchParams({ q: localQuery.trim() });
+      addToHistory(localQuery.trim());
     } else {
       setSearchParams({});
     }
@@ -28,6 +29,11 @@ export function SearchPage() {
   const handleClearAndSearch = () => {
     setLocalQuery('');
     setSearchParams({});
+  };
+
+  const handleHistoryClick = (term: string) => {
+    setLocalQuery(term);
+    setSearchParams({ q: term });
   };
 
   const searchResults = useMemo(() => {
@@ -41,18 +47,18 @@ export function SearchPage() {
       asset.industry.toLowerCase().includes(lowerQuery)
     );
 
-    if (filters.sortBy === 'price') {
+    if (currentFilters.sortBy === 'price') {
       results = [...results].sort((a, b) => 
-        filters.sortOrder === 'asc' ? a.price - b.price : b.price - a.price
+        currentFilters.sortOrder === 'asc' ? a.price - b.price : b.price - a.price
       );
-    } else if (filters.sortBy === 'sales') {
+    } else if (currentFilters.sortBy === 'sales') {
       results = [...results].sort((a, b) => 
-        filters.sortOrder === 'asc' ? a.downloads - b.downloads : b.downloads - a.downloads
+        currentFilters.sortOrder === 'asc' ? a.downloads - b.downloads : b.downloads - a.downloads
       );
     }
 
     return results;
-  }, [query, filters.sortBy, filters.sortOrder]);
+  }, [query, currentFilters.sortBy, currentFilters.sortOrder]);
 
   const popularSearches = ['图标', '商务图标', '社交媒体插图', '科技图标', '电商图片'];
 
@@ -97,7 +103,7 @@ export function SearchPage() {
               <div className="flex items-center gap-2 text-gray-600">
                 <span className="text-sm">排序:</span>
                 <select
-                  value={filters.sortBy}
+                  value={currentFilters.sortBy}
                   onChange={(e) => setFilters({ sortBy: e.target.value as 'price' | 'sales' | 'date' })}
                   className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
@@ -106,7 +112,7 @@ export function SearchPage() {
                   <option value="price">价格排序</option>
                 </select>
                 <button
-                  onClick={() => setFilters({ sortOrder: filters.sortOrder === 'asc' ? 'desc' : 'asc' })}
+                  onClick={() => setFilters({ sortOrder: currentFilters.sortOrder === 'asc' ? 'desc' : 'asc' })}
                   className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <ArrowUpDown className="w-4 h-4 text-gray-500" />
@@ -118,26 +124,54 @@ export function SearchPage() {
 
         {!query ? (
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">热门搜索</h2>
-            <div className="flex flex-wrap gap-2">
-              {popularSearches.map((term) => (
-                <button
-                  key={term}
-                  onClick={() => {
-                    setLocalQuery(term);
-                    setSearchParams({ q: term });
-                  }}
-                  className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors"
-                >
-                  {term}
-                </button>
-              ))}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">搜索历史</h2>
+                {searchHistory.length > 0 && (
+                  <button
+                    onClick={clearHistory}
+                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    清空历史
+                  </button>
+                )}
+              </div>
+              {searchHistory.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {searchHistory.map((term, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleHistoryClick(term)}
+                      className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl shadow-sm p-4">
+                  <p className="text-gray-500 text-center py-8">暂无搜索历史</p>
+                </div>
+              )}
             </div>
 
-            <div className="mt-12">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">搜索历史</h2>
-              <div className="bg-white rounded-xl shadow-sm p-4">
-                <p className="text-gray-500 text-center py-8">暂无搜索历史</p>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">热门搜索</h2>
+              <div className="flex flex-wrap gap-2">
+                {popularSearches.map((term) => (
+                  <button
+                    key={term}
+                    onClick={() => {
+                      setLocalQuery(term);
+                      setSearchParams({ q: term });
+                      addToHistory(term);
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors"
+                  >
+                    {term}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -155,6 +189,7 @@ export function SearchPage() {
                   onClick={() => {
                     setLocalQuery(term);
                     setSearchParams({ q: term });
+                    addToHistory(term);
                   }}
                   className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors"
                 >

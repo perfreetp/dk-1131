@@ -21,7 +21,8 @@ export function CheckoutPage() {
       items: [...items],
       totalAmount: totalPrice,
       paymentMethod,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toLocaleString(),
+      status: 'completed' as const,
     };
     saveOrder(orderData);
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -31,6 +32,8 @@ export function CheckoutPage() {
   };
 
   if (orderComplete) {
+    const completedOrder = useOrderStore.getState().completedOrder;
+    
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,15 +49,15 @@ export function CheckoutPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-500">订单编号</span>
-                  <span className="font-medium">{useOrderStore.getState().completedOrder?.id || 'N/A'}</span>
+                  <span className="font-medium">{completedOrder?.id || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">订单金额</span>
-                  <span className="font-medium">¥{useOrderStore.getState().completedOrder?.totalAmount.toFixed(2) || '0.00'}</span>
+                  <span className="font-medium">¥{completedOrder?.totalAmount.toFixed(2) || '0.00'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">下单时间</span>
-                  <span className="font-medium">{useOrderStore.getState().completedOrder?.createdAt ? new Date(useOrderStore.getState().completedOrder!.createdAt).toLocaleString() : 'N/A'}</span>
+                  <span className="font-medium">{completedOrder?.createdAt || 'N/A'}</span>
                 </div>
               </div>
             </div>
@@ -62,7 +65,7 @@ export function CheckoutPage() {
             <div className="bg-gray-50 rounded-xl p-6 mb-8">
               <h3 className="font-semibold text-gray-900 mb-4">购买的素材</h3>
               <div className="space-y-3">
-                {useOrderStore.getState().completedOrder?.items.map((item) => (
+                {completedOrder?.items.map((item) => (
                   <div key={item.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <img
@@ -83,18 +86,23 @@ export function CheckoutPage() {
 
             <button 
               onClick={() => {
-                const order = useOrderStore.getState().completedOrder;
-                if (order) {
+                if (completedOrder) {
                   const blob = new Blob([JSON.stringify({
-                    orderId: order.id,
-                    items: order.items.map(i => ({ title: i.asset.title, license: i.asset.license_info })),
-                    totalAmount: order.totalAmount,
-                    purchaseDate: order.createdAt,
+                    orderId: completedOrder.id,
+                    items: completedOrder.items.map(i => ({ 
+                      title: i.asset.title, 
+                      license: i.asset.license_info,
+                      format: i.asset.format,
+                      price: i.asset.price * i.quantity
+                    })),
+                    totalAmount: completedOrder.totalAmount,
+                    purchaseDate: completedOrder.createdAt,
+                    status: completedOrder.status,
                   }, null, 2)], { type: 'application/json' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `license-${order.id}.json`;
+                  a.download = `license-${completedOrder.id}.json`;
                   a.click();
                   URL.revokeObjectURL(url);
                 }
@@ -105,12 +113,20 @@ export function CheckoutPage() {
               下载授权凭证
             </button>
 
-            <button
-              onClick={() => navigate('/')}
-              className="w-full py-3 border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-            >
-              继续购物
-            </button>
+            <div className="flex gap-4">
+              <button
+                onClick={() => navigate('/orders')}
+                className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+              >
+                查看订单
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition-colors"
+              >
+                继续购物
+              </button>
+            </div>
           </div>
         </div>
       </div>

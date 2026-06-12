@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LayoutDashboard, Package, ShoppingBag, DollarSign, CheckCircle, Clock, AlertCircle, Search } from 'lucide-react';
 import { useRefundStore } from '@/store/refundStore';
-import { mockOrders } from '@/data/mockData';
+import { useOrderStore } from '@/store/orderStore';
 
 const navItems = [
   { id: 'dashboard', label: '仪表盘', icon: LayoutDashboard },
@@ -15,11 +15,12 @@ export function CreatorOrders() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'orders' | 'refunds'>('orders');
-  const { refundRequests, updateRefundStatus, getPendingCount } = useRefundStore();
+  const { refundRequests, updateRefundStatus, getPendingCount, getRefundByOrderId } = useRefundStore();
+  const { orders } = useOrderStore();
 
   const filteredOrders = filterStatus === 'all' 
-    ? mockOrders 
-    : mockOrders.filter(o => o.status === filterStatus);
+    ? orders 
+    : orders.filter(o => o.status === filterStatus);
 
   const handleNavClick = (id: string) => {
     setActiveNav(id);
@@ -124,6 +125,7 @@ export function CreatorOrders() {
                   { id: 'pending', label: '待处理' },
                   { id: 'paid', label: '已支付' },
                   { id: 'completed', label: '已完成' },
+                  { id: 'refunded', label: '已退款' },
                 ].map((filter) => (
                   <button
                     key={filter.id}
@@ -153,33 +155,36 @@ export function CreatorOrders() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredOrders.map((order) => {
-                      const relatedRefund = refundRequests.find(r => r.order_id === order.id);
+                      const relatedRefund = getRefundByOrderId(order.id);
                       return (
                         <tr key={order.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
                             <span className="font-medium text-gray-900">#{order.id.slice(-6)}</span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="text-accent-500 font-bold">¥{order.total_amount}</span>
+                            <span className="text-accent-500 font-bold">¥{order.totalAmount}</span>
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
                               order.status === 'completed' ? 'bg-green-100 text-green-600' :
                               order.status === 'paid' ? 'bg-blue-100 text-blue-600' :
+                              order.status === 'refunded' ? 'bg-red-100 text-red-600' :
                               'bg-yellow-100 text-yellow-600'
                             }`}>
                               {order.status === 'completed' ? <CheckCircle className="w-3 h-3" /> :
                                order.status === 'paid' ? <Clock className="w-3 h-3" /> :
-                               <AlertCircle className="w-3 h-3" />}
+                               order.status === 'refunded' ? <AlertCircle className="w-3 h-3" /> :
+                               <Clock className="w-3 h-3" />}
                               {order.status === 'completed' ? '已完成' :
-                               order.status === 'paid' ? '已支付' : '待处理'}
+                               order.status === 'paid' ? '已支付' :
+                               order.status === 'refunded' ? '已退款' : '待处理'}
                             </span>
                           </td>
                           <td className="px-6 py-4">
                             {relatedRefund ? (
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 relatedRefund.status === 'approved' ? 'bg-green-100 text-green-600' :
-                                relatedRefund.status === 'rejected' ? 'bg-red-100 text-red-600' :
+                                relatedRefund.status === 'rejected' ? 'bg-gray-100 text-gray-600' :
                                 'bg-yellow-100 text-yellow-600'
                               }`}>
                                 {relatedRefund.status === 'approved' ? '已退款' :
@@ -189,7 +194,7 @@ export function CreatorOrders() {
                               <span className="text-gray-400 text-xs">无</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-gray-500">{order.created_at}</td>
+                          <td className="px-6 py-4 text-gray-500">{order.createdAt}</td>
                           <td className="px-6 py-4">
                             <button className="text-primary-600 hover:text-primary-700 font-medium">查看详情</button>
                           </td>
@@ -204,44 +209,50 @@ export function CreatorOrders() {
 
           {activeTab === 'refunds' && (
             <div className="space-y-4">
-              {refundRequests.map((request) => (
-                <div key={request.id} className="bg-white rounded-xl shadow-sm p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">退款申请 #{request.id}</p>
-                      <p className="text-sm text-gray-500 mt-1">订单: #{request.order_id.slice(-6)}</p>
+              {refundRequests.map((request) => {
+                const order = orders.find(o => o.id === request.order_id);
+                return (
+                  <div key={request.id} className="bg-white rounded-xl shadow-sm p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">退款申请 #{request.id}</p>
+                        <p className="text-sm text-gray-500 mt-1">订单: #{request.order_id.slice(-6)}</p>
+                        {order && (
+                          <p className="text-sm text-gray-400">订单金额: ¥{order.totalAmount}</p>
+                        )}
+                      </div>
+                      <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                        request.status === 'approved' ? 'bg-green-100 text-green-600' :
+                        request.status === 'rejected' ? 'bg-gray-100 text-gray-600' :
+                        'bg-yellow-100 text-yellow-600'
+                      }`}>
+                        {request.status === 'approved' ? '已同意' :
+                         request.status === 'rejected' ? '已拒绝' : '待处理'}
+                      </span>
                     </div>
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${
-                      request.status === 'approved' ? 'bg-green-100 text-green-600' :
-                      request.status === 'rejected' ? 'bg-red-100 text-red-600' :
-                      'bg-yellow-100 text-yellow-600'
-                    }`}>
-                      {request.status === 'approved' ? '已同意' :
-                       request.status === 'rejected' ? '已拒绝' : '待处理'}
-                    </span>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-sm text-gray-600">退款原因: {request.reason}</p>
-                    <p className="text-sm text-gray-400 mt-1">申请时间: {request.created_at}</p>
-                  </div>
-                  {request.status === 'pending' && (
-                    <div className="flex gap-3 mt-4">
-                      <button 
-                        onClick={() => handleRejectRefund(request.id)}
-                        className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        拒绝
-                      </button>
-                      <button 
-                        onClick={() => handleApproveRefund(request.id)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        同意退款
-                      </button>
+                    <div className="mt-4">
+                      <p className="text-sm text-gray-600">退款原因: {request.reason}</p>
+                      <p className="text-sm text-gray-400 mt-1">申请时间: {request.created_at}</p>
                     </div>
-                  )}
-                </div>
-              ))}
+                    {request.status === 'pending' && (
+                      <div className="flex gap-3 mt-4">
+                        <button 
+                          onClick={() => handleRejectRefund(request.id)}
+                          className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          拒绝
+                        </button>
+                        <button 
+                          onClick={() => handleApproveRefund(request.id)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          同意退款
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {refundRequests.length === 0 && (
                 <div className="text-center py-12 text-gray-500">
                   暂无退款申请

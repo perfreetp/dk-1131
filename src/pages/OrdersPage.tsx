@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { Package, Download, FileText, CheckCircle, Clock, ChevronRight, AlertCircle } from 'lucide-react';
-import { mockOrders, mockAssets } from '@/data/mockData';
+import { useOrderStore } from '@/store/orderStore';
 
 export function OrdersPage() {
+  const { orders, getOrderById } = useOrderStore();
   const [filterStatus, setFilterStatus] = useState('all');
   const [downloadMessage, setDownloadMessage] = useState<{ orderId: string; message: string; type: 'success' | 'error' } | null>(null);
 
   const filteredOrders = filterStatus === 'all' 
-    ? mockOrders 
-    : mockOrders.filter(o => o.status === filterStatus);
-
-  const orderItems = mockAssets.slice(0, 2);
+    ? orders 
+    : orders.filter(o => o.status === filterStatus);
 
   const handleDownload = (orderId: string, status: string) => {
     if (status !== 'completed') {
@@ -23,41 +22,70 @@ export function OrdersPage() {
       return;
     }
 
-    const items = orderItems;
+    const order = getOrderById(orderId);
+    if (!order) return;
     
     setDownloadMessage({ 
       orderId, 
-      message: `正在准备 ${items.length} 个素材文件...`, 
+      message: `正在准备 ${order.items.length} 个素材文件...`, 
       type: 'success' 
     });
 
     setTimeout(() => {
       const downloadData = {
-        orderId: orderId,
-        items: items.map(item => ({
-          title: item.title,
-          format: item.format,
-          fileUrl: item.file_url,
-          license: item.license_info,
+        orderId: order.id,
+        items: order.items.map(item => ({
+          title: item.asset.title,
+          format: item.asset.format,
+          fileUrl: item.asset.file_url,
+          license: item.asset.license_info,
+          price: item.asset.price * item.quantity,
         })),
-        downloadTime: new Date().toISOString(),
+        totalAmount: order.totalAmount,
+        purchaseDate: order.createdAt,
+        status: order.status,
       };
 
       const blob = new Blob([JSON.stringify(downloadData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `order-${orderId}-download-info.json`;
+      a.download = `order-${order.id}-download-info.json`;
       a.click();
       URL.revokeObjectURL(url);
 
       setDownloadMessage({ 
         orderId, 
-        message: `素材下载链接已生成 (${items.length} 个文件)`, 
+        message: `素材下载链接已生成 (${order.items.length} 个文件)`, 
         type: 'success' 
       });
       setTimeout(() => setDownloadMessage(null), 3000);
     }, 1000);
+  };
+
+  const downloadLicense = (orderId: string) => {
+    const order = getOrderById(orderId);
+    if (!order) return;
+
+    const licenseData = {
+      orderId: order.id,
+      items: order.items.map(item => ({ 
+        title: item.asset.title, 
+        license: item.asset.license_info 
+      })),
+      totalAmount: order.totalAmount,
+      purchaseDate: order.createdAt,
+      status: order.status,
+      licenseType: 'Commercial Use',
+    };
+
+    const blob = new Blob([JSON.stringify(licenseData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `license-${order.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -74,6 +102,7 @@ export function OrdersPage() {
             { id: 'pending', label: '待处理' },
             { id: 'paid', label: '已支付' },
             { id: 'completed', label: '已完成' },
+            { id: 'refunded', label: '已退款' },
           ].map((filter) => (
             <button
               key={filter.id}
@@ -96,38 +125,42 @@ export function OrdersPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-900">订单编号: #{order.id.slice(-6)}</p>
-                    <p className="text-sm text-gray-500 mt-1">下单时间: {order.created_at}</p>
+                    <p className="text-sm text-gray-500 mt-1">下单时间: {order.createdAt}</p>
                   </div>
                   <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
                     order.status === 'completed' ? 'bg-green-100 text-green-600' :
                     order.status === 'paid' ? 'bg-blue-100 text-blue-600' :
+                    order.status === 'refunded' ? 'bg-red-100 text-red-600' :
                     'bg-yellow-100 text-yellow-600'
                   }`}>
                     {order.status === 'completed' ? <CheckCircle className="w-4 h-4" /> :
                      order.status === 'paid' ? <Clock className="w-4 h-4" /> :
+                     order.status === 'refunded' ? <AlertCircle className="w-4 h-4" /> :
                      <Clock className="w-4 h-4" />}
                     {order.status === 'completed' ? '已完成' :
-                     order.status === 'paid' ? '已支付' : '待处理'}
+                     order.status === 'paid' ? '已支付' :
+                     order.status === 'refunded' ? '已退款' : '待处理'}
                   </span>
                 </div>
               </div>
 
               <div className="p-6">
                 <div className="space-y-4">
-                  {orderItems.map((item) => (
+                  {order.items.map((item) => (
                     <div key={item.id} className="flex items-center gap-4">
                       <img
-                        src={item.preview_url}
-                        alt={item.title}
+                        src={item.asset.preview_url}
+                        alt={item.asset.title}
                         className="w-20 h-20 rounded-lg object-cover"
                       />
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{item.title}</h3>
-                        <p className="text-sm text-gray-500">{item.creator?.username}</p>
+                        <h3 className="font-medium text-gray-900">{item.asset.title}</h3>
+                        <p className="text-sm text-gray-500">{item.asset.creator?.username}</p>
+                        <p className="text-xs text-gray-400">{item.asset.license_info}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-gray-900">¥{item.price}</p>
-                        <p className="text-sm text-gray-500">x1</p>
+                        <p className="font-bold text-gray-900">¥{item.asset.price}</p>
+                        <p className="text-sm text-gray-500">x{item.quantity}</p>
                       </div>
                     </div>
                   ))}
@@ -151,12 +184,15 @@ export function OrdersPage() {
                 <div className="flex items-center justify-between mt-6 pt-6 border-t">
                   <div>
                     <p className="text-sm text-gray-500">订单金额</p>
-                    <p className="text-xl font-bold text-gray-900">¥{order.total_amount}</p>
+                    <p className="text-xl font-bold text-gray-900">¥{order.totalAmount.toFixed(2)}</p>
                   </div>
                   <div className="flex gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    <button 
+                      onClick={() => downloadLicense(order.id)}
+                      className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
                       <FileText className="w-4 h-4" />
-                      申请发票
+                      下载凭证
                     </button>
                     <button 
                       onClick={() => handleDownload(order.id, order.status)}
@@ -185,7 +221,8 @@ export function OrdersPage() {
 
           {filteredOrders.length === 0 && (
             <div className="text-center py-12 text-gray-500">
-              暂无订单
+              <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p>暂无订单</p>
             </div>
           )}
         </div>
