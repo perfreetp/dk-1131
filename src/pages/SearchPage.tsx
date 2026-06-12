@@ -9,29 +9,20 @@ export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [localQuery, setLocalQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const { searchHistory, currentFilters, setFilters, addToHistory, clearHistory, resetFilters } = useSearchStore();
+  const { searchHistory, addToHistory, clearHistory } = useSearchStore();
 
   const query = searchParams.get('q') || '';
+  const urlCategory = searchParams.get('category');
+  const urlStyle = searchParams.get('style');
+  const urlFormat = searchParams.get('format');
+  const urlColor = searchParams.get('color');
+  const urlIndustry = searchParams.get('industry');
+  const urlSortBy = searchParams.get('sortBy') || 'date';
+  const urlSortOrder = searchParams.get('sortOrder') || 'desc';
 
   useEffect(() => {
     setLocalQuery(query);
-    
-    const category = searchParams.get('category');
-    const style = searchParams.get('style');
-    const format = searchParams.get('format');
-    const color = searchParams.get('color');
-    const industry = searchParams.get('industry');
-    
-    if (category || style || format || color || industry) {
-      setFilters({
-        ...(category && category !== '全部' ? { category } : {}),
-        ...(style && style !== '全部' ? { style } : {}),
-        ...(format && format !== '全部' ? { format } : {}),
-        ...(color && color !== '全部' ? { color } : {}),
-        ...(industry && industry !== '全部' ? { industry } : {}),
-      });
-    }
-  }, [query, searchParams, setFilters]);
+  }, [query]);
 
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -42,46 +33,49 @@ export function SearchPage() {
       addToHistory(localQuery.trim());
     }
     
-    if (currentFilters.category) {
-      newParams.category = currentFilters.category;
-    }
-    if (currentFilters.style) {
-      newParams.style = currentFilters.style;
-    }
-    if (currentFilters.format) {
-      newParams.format = currentFilters.format;
-    }
-    if (currentFilters.color) {
-      newParams.color = currentFilters.color;
-    }
-    if (currentFilters.industry) {
-      newParams.industry = currentFilters.industry;
-    }
+    if (urlCategory) newParams.category = urlCategory;
+    if (urlStyle) newParams.style = urlStyle;
+    if (urlFormat) newParams.format = urlFormat;
+    if (urlColor) newParams.color = urlColor;
+    if (urlIndustry) newParams.industry = urlIndustry;
+    newParams.sortBy = urlSortBy;
+    newParams.sortOrder = urlSortOrder;
     
     setSearchParams(newParams);
   };
 
-  const handleClearAndSearch = () => {
+  const handleClearAll = () => {
     setLocalQuery('');
-    resetFilters();
     setSearchParams({});
   };
 
-  const handleFilterChange = (key: 'category' | 'style' | 'format' | 'color' | 'industry', value: string) => {
+  const handleFilterChange = (key: string, value: string) => {
+    const newParams = new URLSearchParams(searchParams);
     if (value === '全部') {
-      setFilters({ [key]: undefined });
-      const newParams = new URLSearchParams(searchParams);
       newParams.delete(key);
-      setSearchParams(newParams);
     } else {
-      setFilters({ [key]: value });
-      setSearchParams({ ...Object.fromEntries(searchParams), [key]: value });
+      newParams.set(key, value);
     }
+    setSearchParams(newParams);
+  };
+
+  const handleSortChange = (sortBy: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('sortBy', sortBy);
+    setSearchParams(newParams);
+  };
+
+  const handleSortOrderChange = () => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('sortOrder', urlSortOrder === 'asc' ? 'desc' : 'asc');
+    setSearchParams(newParams);
   };
 
   const handleHistoryClick = (term: string) => {
     setLocalQuery(term);
-    setSearchParams({ q: term });
+    const newParams = new URLSearchParams();
+    newParams.set('q', term);
+    setSearchParams(newParams);
   };
 
   const searchResults = useMemo(() => {
@@ -98,39 +92,39 @@ export function SearchPage() {
       );
     }
 
-    if (currentFilters.category) {
-      results = results.filter(a => a.category === currentFilters.category);
+    if (urlCategory) {
+      results = results.filter(a => a.category === urlCategory);
     }
-    if (currentFilters.style) {
-      results = results.filter(a => a.style === currentFilters.style);
+    if (urlStyle) {
+      results = results.filter(a => a.style === urlStyle);
     }
-    if (currentFilters.format) {
-      results = results.filter(a => a.format === currentFilters.format);
+    if (urlFormat) {
+      results = results.filter(a => a.format === urlFormat);
     }
-    if (currentFilters.color) {
-      results = results.filter(a => a.color === currentFilters.color);
+    if (urlColor) {
+      results = results.filter(a => a.color === urlColor);
     }
-    if (currentFilters.industry) {
-      results = results.filter(a => a.industry === currentFilters.industry);
+    if (urlIndustry) {
+      results = results.filter(a => a.industry === urlIndustry);
     }
 
-    if (currentFilters.sortBy === 'price') {
+    if (urlSortBy === 'price') {
       results = [...results].sort((a, b) => 
-        currentFilters.sortOrder === 'asc' ? a.price - b.price : b.price - a.price
+        urlSortOrder === 'asc' ? a.price - b.price : b.price - a.price
       );
-    } else if (currentFilters.sortBy === 'sales') {
+    } else if (urlSortBy === 'sales') {
       results = [...results].sort((a, b) => 
-        currentFilters.sortOrder === 'asc' ? a.downloads - b.downloads : b.downloads - a.downloads
+        urlSortOrder === 'asc' ? a.downloads - b.downloads : b.downloads - a.downloads
       );
     }
 
     return results;
-  }, [query, currentFilters]);
+  }, [query, urlCategory, urlStyle, urlFormat, urlColor, urlIndustry, urlSortBy, urlSortOrder]);
 
   const popularSearches = ['图标', '商务图标', '社交媒体插图', '科技图标', '电商图片'];
 
-  const hasActiveFilters = currentFilters.category || currentFilters.style || 
-                          currentFilters.format || currentFilters.color || currentFilters.industry;
+  const hasActiveFilters = urlCategory || urlStyle || urlFormat || urlColor || urlIndustry;
+  const activeFilterCount = [urlCategory, urlStyle, urlFormat, urlColor, urlIndustry].filter(Boolean).length;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -145,13 +139,13 @@ export function SearchPage() {
               placeholder="搜索图标、插图、图片..."
               className="w-full pl-12 pr-24 py-4 text-lg border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
-            {localQuery && (
+            {(localQuery || hasActiveFilters) && (
               <button
                 type="button"
-                onClick={handleClearAndSearch}
-                className="absolute right-20 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={handleClearAll}
+                className="absolute right-20 top-1/2 -translate-y-1/2 px-2 py-1 text-sm text-gray-500 hover:text-red-500 transition-colors"
               >
-                <X className="w-5 h-5 text-gray-400" />
+                清空
               </button>
             )}
             <button
@@ -181,16 +175,16 @@ export function SearchPage() {
                 >
                   <SlidersHorizontal className="w-4 h-4" />
                   筛选
-                  {hasActiveFilters && (
+                  {activeFilterCount > 0 && (
                     <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center text-xs">
-                      {[currentFilters.category, currentFilters.style, currentFilters.format, currentFilters.color, currentFilters.industry].filter(Boolean).length}
+                      {activeFilterCount}
                     </span>
                   )}
                 </button>
                 <span className="text-sm">排序:</span>
                 <select
-                  value={currentFilters.sortBy}
-                  onChange={(e) => setFilters({ sortBy: e.target.value as 'price' | 'sales' | 'date' })}
+                  value={urlSortBy}
+                  onChange={(e) => handleSortChange(e.target.value)}
                   className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="date">最新发布</option>
@@ -198,13 +192,69 @@ export function SearchPage() {
                   <option value="price">价格排序</option>
                 </select>
                 <button
-                  onClick={() => setFilters({ sortOrder: currentFilters.sortOrder === 'asc' ? 'desc' : 'asc' })}
+                  onClick={handleSortOrderChange}
                   className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <ArrowUpDown className="w-4 h-4 text-gray-500" />
                 </button>
               </div>
             </div>
+
+            {hasActiveFilters && (
+              <div className="flex items-center gap-2 mt-4">
+                <span className="text-sm text-gray-500">当前筛选:</span>
+                {urlCategory && (
+                  <span className="px-3 py-1 bg-primary-100 text-primary-600 rounded-full text-sm flex items-center gap-1">
+                    分类: {urlCategory}
+                    <button onClick={() => handleFilterChange('category', '全部')} className="hover:text-red-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {urlStyle && (
+                  <span className="px-3 py-1 bg-primary-100 text-primary-600 rounded-full text-sm flex items-center gap-1">
+                    风格: {urlStyle}
+                    <button onClick={() => handleFilterChange('style', '全部')} className="hover:text-red-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {urlFormat && (
+                  <span className="px-3 py-1 bg-primary-100 text-primary-600 rounded-full text-sm flex items-center gap-1">
+                    格式: {urlFormat}
+                    <button onClick={() => handleFilterChange('format', '全部')} className="hover:text-red-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {urlColor && (
+                  <span className="px-3 py-1 bg-primary-100 text-primary-600 rounded-full text-sm flex items-center gap-1">
+                    颜色: {urlColor}
+                    <button onClick={() => handleFilterChange('color', '全部')} className="hover:text-red-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {urlIndustry && (
+                  <span className="px-3 py-1 bg-primary-100 text-primary-600 rounded-full text-sm flex items-center gap-1">
+                    行业: {urlIndustry}
+                    <button onClick={() => handleFilterChange('industry', '全部')} className="hover:text-red-500">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    const newParams = new URLSearchParams(searchParams);
+                    ['category', 'style', 'format', 'color', 'industry'].forEach(key => newParams.delete(key));
+                    setSearchParams(newParams);
+                  }}
+                  className="text-sm text-red-500 hover:text-red-600"
+                >
+                  清除全部
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -214,7 +264,7 @@ export function SearchPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">分类</label>
                 <select
-                  value={currentFilters.category || '全部'}
+                  value={urlCategory || '全部'}
                   onChange={(e) => handleFilterChange('category', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
@@ -226,7 +276,7 @@ export function SearchPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">风格</label>
                 <select
-                  value={currentFilters.style || '全部'}
+                  value={urlStyle || '全部'}
                   onChange={(e) => handleFilterChange('style', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
@@ -238,7 +288,7 @@ export function SearchPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">格式</label>
                 <select
-                  value={currentFilters.format || '全部'}
+                  value={urlFormat || '全部'}
                   onChange={(e) => handleFilterChange('format', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
@@ -250,7 +300,7 @@ export function SearchPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">颜色</label>
                 <select
-                  value={currentFilters.color || '全部'}
+                  value={urlColor || '全部'}
                   onChange={(e) => handleFilterChange('color', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
@@ -262,7 +312,7 @@ export function SearchPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">行业</label>
                 <select
-                  value={currentFilters.industry || '全部'}
+                  value={urlIndustry || '全部'}
                   onChange={(e) => handleFilterChange('industry', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
@@ -272,19 +322,6 @@ export function SearchPage() {
                 </select>
               </div>
             </div>
-            {hasActiveFilters && (
-              <button
-                onClick={() => {
-                  resetFilters();
-                  const newParams = new URLSearchParams(searchParams);
-                  ['category', 'style', 'format', 'color', 'industry'].forEach(key => newParams.delete(key));
-                  setSearchParams(newParams);
-                }}
-                className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
-              >
-                清除所有筛选
-              </button>
-            )}
           </div>
         )}
 
@@ -328,11 +365,7 @@ export function SearchPage() {
                 {popularSearches.map((term) => (
                   <button
                     key={term}
-                    onClick={() => {
-                      setLocalQuery(term);
-                      setSearchParams({ q: term });
-                      addToHistory(term);
-                    }}
+                    onClick={() => handleHistoryClick(term)}
                     className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors"
                   >
                     {term}
@@ -352,11 +385,7 @@ export function SearchPage() {
               {popularSearches.map((term) => (
                 <button
                   key={term}
-                  onClick={() => {
-                    setLocalQuery(term);
-                    setSearchParams({ q: term });
-                    addToHistory(term);
-                  }}
+                  onClick={() => handleHistoryClick(term)}
                   className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors"
                 >
                   {term}

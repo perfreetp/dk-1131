@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, Download, FileText, Package, Calendar, 
   CreditCard, XCircle, ChevronRight
@@ -9,11 +9,23 @@ import { useOrderStore } from '@/store/orderStore';
 export function OrdersPage() {
   const { orderId } = useParams<{ orderId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { orders, getOrderById } = useOrderStore();
-  const [selectedStatus, setSelectedStatus] = useState('all');
-  const [activeTab, setActiveTab] = useState<'list' | 'detail'>('list');
+  
+  const [selectedStatus, setSelectedStatus] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('status') || 'all';
+  });
 
   const currentOrder = orderId ? getOrderById(orderId) : null;
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const status = params.get('status');
+    if (status && status !== selectedStatus) {
+      setSelectedStatus(status);
+    }
+  }, [location.search, selectedStatus]);
 
   const filteredOrders = orders.filter(order => {
     if (selectedStatus === 'all') return true;
@@ -29,7 +41,8 @@ export function OrdersPage() {
 
   const handleDownloadAssets = (order: typeof currentOrder) => {
     if (!order) return;
-    alert(`正在下载订单 ${order.id} 的素材文件...\n共 ${order.items.reduce((sum, item) => sum + item.quantity, 0)} 个文件`);
+    const totalFiles = order.items.reduce((sum, item) => sum + item.quantity, 0);
+    alert(`正在下载订单 ${order.id} 的素材文件...\n共 ${totalFiles} 个文件`);
   };
 
   const handleDownloadCertificate = (order: typeof currentOrder) => {
@@ -42,7 +55,9 @@ export function OrdersPage() {
 支付方式: ${order.paymentMethod === 'alipay' ? '支付宝' : '微信支付'}
 
 素材清单:
-${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.asset.price * item.quantity})`).join('\n')}
+${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (单价¥${item.asset.price}，小计¥${item.asset.price * item.quantity})`).join('\n')}
+
+文件总数: ${order.items.reduce((sum, item) => sum + item.quantity, 0)} 个
 
 授权说明:
 本凭证证明您已合法购买上述素材的使用权，可用于商业用途。
@@ -63,16 +78,48 @@ ${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.
     URL.revokeObjectURL(url);
   };
 
+  const handleStatusChange = (status: string) => {
+    setSelectedStatus(status);
+    navigate(`/orders?status=${status}`);
+  };
+
+  const handleOrderClick = (orderId: string) => {
+    navigate(`/orders/${orderId}?status=${selectedStatus}`);
+  };
+
+  const handleBackToList = () => {
+    navigate(`/orders?status=${selectedStatus}`);
+  };
+
   const renderOrderDetail = () => {
-    if (!currentOrder) return null;
+    if (!currentOrder) {
+      return (
+        <div className="max-w-4xl mx-auto">
+          <button
+            onClick={handleBackToList}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            返回订单列表
+          </button>
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Package className="w-8 h-8 text-gray-400" />
+            </div>
+            <h2 className="text-lg font-medium text-gray-900 mb-2">订单不存在</h2>
+            <p className="text-gray-500">该订单可能已被删除</p>
+          </div>
+        </div>
+      );
+    }
+
+    const totalItems = currentOrder.items.reduce((sum, item) => sum + item.quantity, 0);
+    const calculatedTotal = currentOrder.items.reduce((sum, item) => sum + item.asset.price * item.quantity, 0);
 
     return (
       <div className="max-w-4xl mx-auto">
         <button
-          onClick={() => {
-            setActiveTab('list');
-            navigate('/orders');
-          }}
+          onClick={handleBackToList}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -121,7 +168,7 @@ ${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.
                 {currentOrder.items.map((item, index) => (
                   <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
                     <img 
-                      src={item.asset.thumbnail} 
+                      src={item.asset.thumbnail || item.asset.preview_url} 
                       alt={item.asset.title}
                       className="w-20 h-20 rounded-lg object-cover"
                     />
@@ -144,9 +191,11 @@ ${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.
             <div className="border-t border-gray-100 pt-6">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-gray-500">商品总数</span>
-                <span className="font-medium">
-                  {currentOrder.items.reduce((sum, item) => sum + item.quantity, 0)} 件
-                </span>
+                <span className="font-medium">{totalItems} 件</span>
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-gray-500">计算总额</span>
+                <span className="font-medium">¥{calculatedTotal}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">订单总价</span>
@@ -163,7 +212,7 @@ ${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                 >
                   <Download className="w-5 h-5" />
-                  下载素材 ({currentOrder.items.reduce((sum, item) => sum + item.quantity, 0)}个文件)
+                  下载素材 ({totalItems}个文件)
                 </button>
                 <button
                   onClick={() => handleDownloadCertificate(currentOrder)}
@@ -212,7 +261,7 @@ ${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.
         ].map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setSelectedStatus(key)}
+            onClick={() => handleStatusChange(key)}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               selectedStatus === key
                 ? 'bg-primary-600 text-white'
@@ -237,10 +286,7 @@ ${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.
           {filteredOrders.map((order) => (
             <div 
               key={order.id}
-              onClick={() => {
-                setActiveTab('detail');
-                navigate(`/orders/${order.id}`);
-              }}
+              onClick={() => handleOrderClick(order.id)}
               className="bg-white rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-md transition-shadow"
             >
               <div className="flex items-center justify-between mb-4">
@@ -260,13 +306,13 @@ ${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.
                 {order.items.slice(0, 3).map((item, index) => (
                   <div key={index} className="relative">
                     <img 
-                      src={item.asset.thumbnail} 
+                      src={item.asset.thumbnail || item.asset.preview_url} 
                       alt={item.asset.title}
                       className="w-16 h-16 rounded-lg object-cover"
                     />
                     {index >= 2 && order.items.length > 3 && (
                       <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center text-white text-sm font-medium">
-                        +{order.items.length - 2}
+                        +{order.items.length - 3}
                       </div>
                     )}
                   </div>
@@ -328,7 +374,7 @@ ${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="px-4 sm:px-6 lg:px-8">
-        {activeTab === 'list' ? renderOrderList() : renderOrderDetail()}
+        {orderId ? renderOrderDetail() : renderOrderList()}
       </div>
     </div>
   );

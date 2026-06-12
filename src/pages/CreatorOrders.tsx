@@ -9,16 +9,16 @@ import type { RefundRequest } from '@/types';
 
 export function CreatorOrders() {
   const { orders } = useOrderStore();
-  const { refunds, handleRefundRequest } = useRefundStore();
+  const { refundRequests, handleRefundRequest } = useRefundStore();
   const [activeTab, setActiveTab] = useState<'orders' | 'refunds'>('orders');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [refundStatus, setRefundStatus] = useState('pending');
+  const [refundStatus, setRefundStatus] = useState('all');
 
   const myOrders = orders.filter(order => 
     order.items.some(item => item.asset.authorId === '1')
   );
 
-  const myRefunds = refunds.filter((refund: RefundRequest) => 
+  const myRefunds = refundRequests.filter((refund: RefundRequest) => 
     refund.items?.some(item => item.asset.authorId === '1') ?? false
   );
 
@@ -69,7 +69,7 @@ export function CreatorOrders() {
             </div>
             <span className="flex items-center gap-1 text-gray-500 text-sm">
               <Calendar className="w-4 h-4" />
-              {refund.createdAt}
+              {refund.createdAt || refund.created_at}
             </span>
           </div>
         </div>
@@ -79,7 +79,7 @@ export function CreatorOrders() {
             {refund.items?.filter(item => item.asset.authorId === '1').slice(0, 3).map((item, index) => (
               <div key={index} className="relative">
                 <img 
-                  src={item.asset.thumbnail} 
+                  src={item.asset.thumbnail || item.asset.preview_url} 
                   alt={item.asset.title}
                   className="w-16 h-16 rounded-lg object-cover"
                 />
@@ -90,7 +90,7 @@ export function CreatorOrders() {
           <div className="space-y-2 mb-4">
             <div className="flex items-center justify-between text-gray-500">
               <span>订单号</span>
-              <span className="font-medium text-gray-900">{refund.orderId}</span>
+              <span className="font-medium text-gray-900">{refund.orderId || refund.order_id}</span>
             </div>
             <div className="flex items-center justify-between text-gray-500">
               <span>退款金额</span>
@@ -236,7 +236,7 @@ export function CreatorOrders() {
                       {order.items.filter(item => item.asset.authorId === '1').slice(0, 3).map((item, index) => (
                         <div key={index} className="relative">
                           <img 
-                            src={item.asset.thumbnail} 
+                            src={item.asset.thumbnail || item.asset.preview_url} 
                             alt={item.asset.title}
                             className="w-16 h-16 rounded-lg object-cover"
                           />
