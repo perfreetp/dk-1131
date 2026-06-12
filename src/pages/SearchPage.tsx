@@ -1,34 +1,82 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, X, ArrowUpDown, Trash2 } from 'lucide-react';
+import { Search, X, ArrowUpDown, Trash2, SlidersHorizontal } from 'lucide-react';
 import { AssetCard } from '@/components/AssetCard';
-import { mockAssets } from '@/data/mockData';
+import { mockAssets, categories, styles, formats, colors, industries } from '@/data/mockData';
 import { useSearchStore } from '@/store/searchStore';
 
 export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [localQuery, setLocalQuery] = useState('');
-  const { searchHistory, currentFilters, setFilters, addToHistory, clearHistory } = useSearchStore();
+  const [showFilters, setShowFilters] = useState(false);
+  const { searchHistory, currentFilters, setFilters, addToHistory, clearHistory, resetFilters } = useSearchStore();
 
   const query = searchParams.get('q') || '';
 
   useEffect(() => {
     setLocalQuery(query);
-  }, [query]);
+    
+    const category = searchParams.get('category');
+    const style = searchParams.get('style');
+    const format = searchParams.get('format');
+    const color = searchParams.get('color');
+    const industry = searchParams.get('industry');
+    
+    if (category || style || format || color || industry) {
+      setFilters({
+        ...(category && category !== '全部' ? { category } : {}),
+        ...(style && style !== '全部' ? { style } : {}),
+        ...(format && format !== '全部' ? { format } : {}),
+        ...(color && color !== '全部' ? { color } : {}),
+        ...(industry && industry !== '全部' ? { industry } : {}),
+      });
+    }
+  }, [query, searchParams, setFilters]);
 
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
+    
+    const newParams: Record<string, string> = {};
     if (localQuery.trim()) {
-      setSearchParams({ q: localQuery.trim() });
+      newParams.q = localQuery.trim();
       addToHistory(localQuery.trim());
-    } else {
-      setSearchParams({});
     }
+    
+    if (currentFilters.category) {
+      newParams.category = currentFilters.category;
+    }
+    if (currentFilters.style) {
+      newParams.style = currentFilters.style;
+    }
+    if (currentFilters.format) {
+      newParams.format = currentFilters.format;
+    }
+    if (currentFilters.color) {
+      newParams.color = currentFilters.color;
+    }
+    if (currentFilters.industry) {
+      newParams.industry = currentFilters.industry;
+    }
+    
+    setSearchParams(newParams);
   };
 
   const handleClearAndSearch = () => {
     setLocalQuery('');
+    resetFilters();
     setSearchParams({});
+  };
+
+  const handleFilterChange = (key: 'category' | 'style' | 'format' | 'color' | 'industry', value: string) => {
+    if (value === '全部') {
+      setFilters({ [key]: undefined });
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete(key);
+      setSearchParams(newParams);
+    } else {
+      setFilters({ [key]: value });
+      setSearchParams({ ...Object.fromEntries(searchParams), [key]: value });
+    }
   };
 
   const handleHistoryClick = (term: string) => {
@@ -37,15 +85,34 @@ export function SearchPage() {
   };
 
   const searchResults = useMemo(() => {
-    if (!query) return [];
-    const lowerQuery = query.toLowerCase();
-    let results = mockAssets.filter(asset => 
-      asset.title.toLowerCase().includes(lowerQuery) ||
-      asset.description.toLowerCase().includes(lowerQuery) ||
-      asset.category.toLowerCase().includes(lowerQuery) ||
-      asset.style.toLowerCase().includes(lowerQuery) ||
-      asset.industry.toLowerCase().includes(lowerQuery)
-    );
+    let results = [...mockAssets];
+    
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      results = results.filter(asset => 
+        asset.title.toLowerCase().includes(lowerQuery) ||
+        asset.description.toLowerCase().includes(lowerQuery) ||
+        asset.category.toLowerCase().includes(lowerQuery) ||
+        asset.style.toLowerCase().includes(lowerQuery) ||
+        asset.industry.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    if (currentFilters.category) {
+      results = results.filter(a => a.category === currentFilters.category);
+    }
+    if (currentFilters.style) {
+      results = results.filter(a => a.style === currentFilters.style);
+    }
+    if (currentFilters.format) {
+      results = results.filter(a => a.format === currentFilters.format);
+    }
+    if (currentFilters.color) {
+      results = results.filter(a => a.color === currentFilters.color);
+    }
+    if (currentFilters.industry) {
+      results = results.filter(a => a.industry === currentFilters.industry);
+    }
 
     if (currentFilters.sortBy === 'price') {
       results = [...results].sort((a, b) => 
@@ -58,9 +125,12 @@ export function SearchPage() {
     }
 
     return results;
-  }, [query, currentFilters.sortBy, currentFilters.sortOrder]);
+  }, [query, currentFilters]);
 
   const popularSearches = ['图标', '商务图标', '社交媒体插图', '科技图标', '电商图片'];
+
+  const hasActiveFilters = currentFilters.category || currentFilters.style || 
+                          currentFilters.format || currentFilters.color || currentFilters.industry;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -101,6 +171,22 @@ export function SearchPage() {
                 <span className="ml-2 text-gray-500 font-normal">共 {searchResults.length} 个结果</span>
               </h1>
               <div className="flex items-center gap-2 text-gray-600">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    hasActiveFilters || showFilters
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  筛选
+                  {hasActiveFilters && (
+                    <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center text-xs">
+                      {[currentFilters.category, currentFilters.style, currentFilters.format, currentFilters.color, currentFilters.industry].filter(Boolean).length}
+                    </span>
+                  )}
+                </button>
                 <span className="text-sm">排序:</span>
                 <select
                   value={currentFilters.sortBy}
@@ -119,6 +205,86 @@ export function SearchPage() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {showFilters && (
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">分类</label>
+                <select
+                  value={currentFilters.category || '全部'}
+                  onChange={(e) => handleFilterChange('category', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">风格</label>
+                <select
+                  value={currentFilters.style || '全部'}
+                  onChange={(e) => handleFilterChange('style', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {styles.map(style => (
+                    <option key={style} value={style}>{style}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">格式</label>
+                <select
+                  value={currentFilters.format || '全部'}
+                  onChange={(e) => handleFilterChange('format', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {formats.map(format => (
+                    <option key={format} value={format}>{format}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">颜色</label>
+                <select
+                  value={currentFilters.color || '全部'}
+                  onChange={(e) => handleFilterChange('color', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {colors.map(color => (
+                    <option key={color} value={color}>{color}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">行业</label>
+                <select
+                  value={currentFilters.industry || '全部'}
+                  onChange={(e) => handleFilterChange('industry', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {industries.map(industry => (
+                    <option key={industry} value={industry}>{industry}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  resetFilters();
+                  const newParams = new URLSearchParams(searchParams);
+                  ['category', 'style', 'format', 'color', 'industry'].forEach(key => newParams.delete(key));
+                  setSearchParams(newParams);
+                }}
+                className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
+              >
+                清除所有筛选
+              </button>
+            )}
           </div>
         )}
 

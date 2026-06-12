@@ -1,231 +1,334 @@
 import { useState } from 'react';
-import { Package, Download, FileText, CheckCircle, Clock, ChevronRight, AlertCircle } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  ArrowLeft, Download, FileText, Package, Calendar, 
+  CreditCard, XCircle, ChevronRight
+} from 'lucide-react';
 import { useOrderStore } from '@/store/orderStore';
 
 export function OrdersPage() {
+  const { orderId } = useParams<{ orderId?: string }>();
+  const navigate = useNavigate();
   const { orders, getOrderById } = useOrderStore();
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [downloadMessage, setDownloadMessage] = useState<{ orderId: string; message: string; type: 'success' | 'error' } | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [activeTab, setActiveTab] = useState<'list' | 'detail'>('list');
 
-  const filteredOrders = filterStatus === 'all' 
-    ? orders 
-    : orders.filter(o => o.status === filterStatus);
+  const currentOrder = orderId ? getOrderById(orderId) : null;
 
-  const handleDownload = (orderId: string, status: string) => {
-    if (status !== 'completed') {
-      setDownloadMessage({ 
-        orderId, 
-        message: '仅已完成订单可下载素材', 
-        type: 'error' 
-      });
-      setTimeout(() => setDownloadMessage(null), 3000);
-      return;
-    }
+  const filteredOrders = orders.filter(order => {
+    if (selectedStatus === 'all') return true;
+    return order.status === selectedStatus;
+  });
 
-    const order = getOrderById(orderId);
-    if (!order) return;
-    
-    setDownloadMessage({ 
-      orderId, 
-      message: `正在准备 ${order.items.length} 个素材文件...`, 
-      type: 'success' 
-    });
-
-    setTimeout(() => {
-      const downloadData = {
-        orderId: order.id,
-        items: order.items.map(item => ({
-          title: item.asset.title,
-          format: item.asset.format,
-          fileUrl: item.asset.file_url,
-          license: item.asset.license_info,
-          price: item.asset.price * item.quantity,
-        })),
-        totalAmount: order.totalAmount,
-        purchaseDate: order.createdAt,
-        status: order.status,
-      };
-
-      const blob = new Blob([JSON.stringify(downloadData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `order-${order.id}-download-info.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      setDownloadMessage({ 
-        orderId, 
-        message: `素材下载链接已生成 (${order.items.length} 个文件)`, 
-        type: 'success' 
-      });
-      setTimeout(() => setDownloadMessage(null), 3000);
-    }, 1000);
+  const statusConfig = {
+    pending: { label: '待支付', color: 'text-yellow-600', bg: 'bg-yellow-100' },
+    paid: { label: '已支付', color: 'text-blue-600', bg: 'bg-blue-100' },
+    completed: { label: '已完成', color: 'text-green-600', bg: 'bg-green-100' },
+    refunded: { label: '已退款', color: 'text-red-600', bg: 'bg-red-100' },
   };
 
-  const downloadLicense = (orderId: string) => {
-    const order = getOrderById(orderId);
+  const handleDownloadAssets = (order: typeof currentOrder) => {
     if (!order) return;
+    alert(`正在下载订单 ${order.id} 的素材文件...\n共 ${order.items.reduce((sum, item) => sum + item.quantity, 0)} 个文件`);
+  };
 
-    const licenseData = {
-      orderId: order.id,
-      items: order.items.map(item => ({ 
-        title: item.asset.title, 
-        license: item.asset.license_info 
-      })),
-      totalAmount: order.totalAmount,
-      purchaseDate: order.createdAt,
-      status: order.status,
-      licenseType: 'Commercial Use',
-    };
+  const handleDownloadCertificate = (order: typeof currentOrder) => {
+    if (!order) return;
+    const certContent = `
+授权凭证
+订单号: ${order.id}
+订单日期: ${order.createdAt}
+总金额: ¥${order.totalAmount}
+支付方式: ${order.paymentMethod === 'alipay' ? '支付宝' : '微信支付'}
 
-    const blob = new Blob([JSON.stringify(licenseData, null, 2)], { type: 'application/json' });
+素材清单:
+${order.items.map(item => `  - ${item.asset.title} x ${item.quantity} (¥${item.asset.price * item.quantity})`).join('\n')}
+
+授权说明:
+本凭证证明您已合法购买上述素材的使用权，可用于商业用途。
+授权期限: 永久
+授权范围: 全球
+
+感谢您的购买！
+    `.trim();
+    
+    const blob = new Blob([certContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `license-${order.id}.json`;
-    a.click();
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `授权凭证_${order.id}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 mb-8">
-          <Package className="w-8 h-8 text-primary-600" />
-          <h1 className="text-2xl font-bold text-gray-900">我的订单</h1>
-        </div>
+  const renderOrderDetail = () => {
+    if (!currentOrder) return null;
 
-        <div className="flex gap-2 mb-6">
-          {[
-            { id: 'all', label: '全部' },
-            { id: 'pending', label: '待处理' },
-            { id: 'paid', label: '已支付' },
-            { id: 'completed', label: '已完成' },
-            { id: 'refunded', label: '已退款' },
-          ].map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => setFilterStatus(filter.id)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === filter.id
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
+    return (
+      <div className="max-w-4xl mx-auto">
+        <button
+          onClick={() => {
+            setActiveTab('list');
+            navigate('/orders');
+          }}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          返回订单列表
+        </button>
 
-        <div className="space-y-6">
-          {filteredOrders.map((order) => (
-            <div key={order.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="p-6 border-b">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">订单编号: #{order.id.slice(-6)}</p>
-                    <p className="text-sm text-gray-500 mt-1">下单时间: {order.createdAt}</p>
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">订单详情</h1>
+                <p className="text-gray-500 mt-1">订单号: {currentOrder.id}</p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig[currentOrder.status].bg} ${statusConfig[currentOrder.status].color}`}>
+                {statusConfig[currentOrder.status].label}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-gray-500 mb-2">
+                  <Calendar className="w-4 h-4" />
+                  <span className="text-sm">下单时间</span>
+                </div>
+                <p className="font-medium text-gray-900">{currentOrder.createdAt}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-gray-500 mb-2">
+                  <CreditCard className="w-4 h-4" />
+                  <span className="text-sm">支付方式</span>
+                </div>
+                <p className="font-medium text-gray-900">
+                  {currentOrder.paymentMethod === 'alipay' ? '支付宝' : '微信支付'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                素材清单
+              </h2>
+              <div className="space-y-4">
+                {currentOrder.items.map((item, index) => (
+                  <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                    <img 
+                      src={item.asset.thumbnail} 
+                      alt={item.asset.title}
+                      className="w-20 h-20 rounded-lg object-cover"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">{item.asset.title}</h3>
+                      <p className="text-sm text-gray-500">
+                        {item.asset.category} · {item.asset.format} · {item.asset.style}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">单价 ¥{item.asset.price}</p>
+                      <p className="text-sm text-gray-500">数量 x{item.quantity}</p>
+                      <p className="font-medium text-gray-900">小计 ¥{item.asset.price * item.quantity}</p>
+                    </div>
                   </div>
-                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-                    order.status === 'completed' ? 'bg-green-100 text-green-600' :
-                    order.status === 'paid' ? 'bg-blue-100 text-blue-600' :
-                    order.status === 'refunded' ? 'bg-red-100 text-red-600' :
-                    'bg-yellow-100 text-yellow-600'
-                  }`}>
-                    {order.status === 'completed' ? <CheckCircle className="w-4 h-4" /> :
-                     order.status === 'paid' ? <Clock className="w-4 h-4" /> :
-                     order.status === 'refunded' ? <AlertCircle className="w-4 h-4" /> :
-                     <Clock className="w-4 h-4" />}
-                    {order.status === 'completed' ? '已完成' :
-                     order.status === 'paid' ? '已支付' :
-                     order.status === 'refunded' ? '已退款' : '待处理'}
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-gray-500">商品总数</span>
+                <span className="font-medium">
+                  {currentOrder.items.reduce((sum, item) => sum + item.quantity, 0)} 件
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">订单总价</span>
+                <span className="text-2xl font-bold text-primary-600">¥{currentOrder.totalAmount}</span>
+              </div>
+            </div>
+          </div>
+
+          {(currentOrder.status === 'completed' || currentOrder.status === 'paid') && (
+            <div className="px-6 pb-6">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleDownloadAssets(currentOrder)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  <Download className="w-5 h-5" />
+                  下载素材 ({currentOrder.items.reduce((sum, item) => sum + item.quantity, 0)}个文件)
+                </button>
+                <button
+                  onClick={() => handleDownloadCertificate(currentOrder)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <FileText className="w-5 h-5" />
+                  下载授权凭证
+                </button>
+              </div>
+            </div>
+          )}
+
+          {currentOrder.status === 'pending' && (
+            <div className="px-6 pb-6">
+              <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                <CreditCard className="w-5 h-5" />
+                去支付
+              </button>
+            </div>
+          )}
+
+          {currentOrder.status === 'refunded' && (
+            <div className="px-6 pb-6">
+              <div className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 text-gray-500 rounded-lg">
+                <XCircle className="w-5 h-5" />
+                订单已退款
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderOrderList = () => (
+    <div className="max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">我的订单</h1>
+
+      <div className="flex gap-2 mb-6">
+        {[
+          { key: 'all', label: '全部订单' },
+          { key: 'pending', label: '待支付' },
+          { key: 'paid', label: '已支付' },
+          { key: 'completed', label: '已完成' },
+          { key: 'refunded', label: '已退款' },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setSelectedStatus(key)}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              selectedStatus === key
+                ? 'bg-primary-600 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {filteredOrders.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Package className="w-8 h-8 text-gray-400" />
+          </div>
+          <h2 className="text-lg font-medium text-gray-900 mb-2">暂无订单</h2>
+          <p className="text-gray-500">快去挑选心仪的素材吧</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredOrders.map((order) => (
+            <div 
+              key={order.id}
+              onClick={() => {
+                setActiveTab('detail');
+                navigate(`/orders/${order.id}`);
+              }}
+              className="bg-white rounded-xl shadow-sm p-6 cursor-pointer hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig[order.status].bg} ${statusConfig[order.status].color}`}>
+                    {statusConfig[order.status].label}
                   </span>
+                  <span className="text-gray-500 text-sm">{order.createdAt}</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-500">
+                  <span>订单号: {order.id}</span>
+                  <ChevronRight className="w-5 h-5" />
                 </div>
               </div>
 
-              <div className="p-6">
-                <div className="space-y-4">
-                  {order.items.map((item) => (
-                    <div key={item.id} className="flex items-center gap-4">
-                      <img
-                        src={item.asset.preview_url}
-                        alt={item.asset.title}
-                        className="w-20 h-20 rounded-lg object-cover"
-                      />
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{item.asset.title}</h3>
-                        <p className="text-sm text-gray-500">{item.asset.creator?.username}</p>
-                        <p className="text-xs text-gray-400">{item.asset.license_info}</p>
+              <div className="flex items-center gap-4 mb-4">
+                {order.items.slice(0, 3).map((item, index) => (
+                  <div key={index} className="relative">
+                    <img 
+                      src={item.asset.thumbnail} 
+                      alt={item.asset.title}
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                    {index >= 2 && order.items.length > 3 && (
+                      <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center text-white text-sm font-medium">
+                        +{order.items.length - 2}
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-gray-900">¥{item.asset.price}</p>
-                        <p className="text-sm text-gray-500">x{item.quantity}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {downloadMessage?.orderId === order.id && (
-                  <div className={`mt-4 p-3 rounded-lg flex items-center gap-2 ${
-                    downloadMessage.type === 'success' 
-                      ? 'bg-green-50 text-green-700' 
-                      : 'bg-red-50 text-red-700'
-                  }`}>
-                    {downloadMessage.type === 'success' ? (
-                      <CheckCircle className="w-5 h-5" />
-                    ) : (
-                      <AlertCircle className="w-5 h-5" />
                     )}
-                    <span className="text-sm">{downloadMessage.message}</span>
                   </div>
-                )}
+                ))}
+              </div>
 
-                <div className="flex items-center justify-between mt-6 pt-6 border-t">
-                  <div>
-                    <p className="text-sm text-gray-500">订单金额</p>
-                    <p className="text-xl font-bold text-gray-900">¥{order.totalAmount.toFixed(2)}</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={() => downloadLicense(order.id)}
-                      className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <FileText className="w-4 h-4" />
-                      下载凭证
-                    </button>
-                    <button 
-                      onClick={() => handleDownload(order.id, order.status)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                        order.status === 'completed'
-                          ? 'bg-primary-600 text-white hover:bg-primary-700'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
-                      disabled={order.status !== 'completed'}
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">
+                  共 {order.items.reduce((sum, item) => sum + item.quantity, 0)} 件商品
+                </span>
+                <div className="text-right">
+                  <span className="text-gray-500 text-sm">合计:</span>
+                  <span className="text-lg font-bold text-primary-600 ml-2">¥{order.totalAmount}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-4">
+                {(order.status === 'completed' || order.status === 'paid') && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadAssets(order);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       <Download className="w-4 h-4" />
                       下载素材
                     </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-6 pb-6">
-                <button className="w-full flex items-center justify-between py-3 text-primary-600 hover:text-primary-700 font-medium">
-                  <span>查看订单详情</span>
-                  <ChevronRight className="w-5 h-5" />
-                </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadCertificate(order);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <FileText className="w-4 h-4" />
+                      下载凭证
+                    </button>
+                  </>
+                )}
+                {order.status === 'pending' && (
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    去支付
+                  </button>
+                )}
               </div>
             </div>
           ))}
-
-          {filteredOrders.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p>暂无订单</p>
-            </div>
-          )}
         </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="px-4 sm:px-6 lg:px-8">
+        {activeTab === 'list' ? renderOrderList() : renderOrderDetail()}
       </div>
     </div>
   );

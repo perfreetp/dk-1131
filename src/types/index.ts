@@ -11,6 +11,8 @@ export interface User {
 export interface Asset {
   id: string;
   creator_id: string;
+  authorId?: string;
+  authorName?: string;
   title: string;
   description: string;
   category: string;
@@ -20,12 +22,16 @@ export interface Asset {
   industry: string;
   price: number;
   license_info: string;
+  license?: string;
   preview_url: string;
+  thumbnail?: string;
   file_url: string;
+  images?: string[];
   downloads: number;
   likes: number;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
+  createdAt?: string;
   updated_at: string;
   creator?: User;
 }
@@ -73,9 +79,13 @@ export interface Follower {
 export interface RefundRequest {
   id: string;
   order_id: string;
+  orderId?: string;
   reason: string;
+  amount?: number;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
+  createdAt?: string;
+  items?: CartItem[];
 }
 
 export interface FilterOptions {
