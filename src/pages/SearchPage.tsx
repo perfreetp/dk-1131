@@ -6,32 +6,53 @@ import { mockAssets } from '@/data/mockData';
 import { useFilterStore } from '@/store/filterStore';
 
 export function SearchPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [localQuery, setLocalQuery] = useState('');
-  const { filters, setFilters, resetFilters } = useFilterStore();
+  const { filters, setFilters } = useFilterStore();
 
   const query = searchParams.get('q') || '';
 
   useEffect(() => {
-    if (query) {
-      setLocalQuery(query);
+    setLocalQuery(query);
+  }, [query]);
+
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (localQuery.trim()) {
+      setSearchParams({ q: localQuery.trim() });
+    } else {
+      setSearchParams({});
     }
-    return () => {
-      resetFilters();
-    };
-  }, [query, resetFilters]);
+  };
+
+  const handleClearAndSearch = () => {
+    setLocalQuery('');
+    setSearchParams({});
+  };
 
   const searchResults = useMemo(() => {
     if (!query) return [];
     const lowerQuery = query.toLowerCase();
-    return mockAssets.filter(asset => 
+    let results = mockAssets.filter(asset => 
       asset.title.toLowerCase().includes(lowerQuery) ||
       asset.description.toLowerCase().includes(lowerQuery) ||
       asset.category.toLowerCase().includes(lowerQuery) ||
       asset.style.toLowerCase().includes(lowerQuery) ||
       asset.industry.toLowerCase().includes(lowerQuery)
     );
-  }, [query]);
+
+    if (filters.sortBy === 'price') {
+      results = [...results].sort((a, b) => 
+        filters.sortOrder === 'asc' ? a.price - b.price : b.price - a.price
+      );
+    } else if (filters.sortBy === 'sales') {
+      results = [...results].sort((a, b) => 
+        filters.sortOrder === 'asc' ? a.downloads - b.downloads : b.downloads - a.downloads
+      );
+    }
+
+    return results;
+  }, [query, filters.sortBy, filters.sortOrder]);
 
   const popularSearches = ['图标', '商务图标', '社交媒体插图', '科技图标', '电商图片'];
 
@@ -39,7 +60,7 @@ export function SearchPage() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mx-auto mb-8">
-          <form className="relative">
+          <form onSubmit={handleSearch} className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
@@ -50,7 +71,8 @@ export function SearchPage() {
             />
             {localQuery && (
               <button
-                onClick={() => setLocalQuery('')}
+                type="button"
+                onClick={handleClearAndSearch}
                 className="absolute right-20 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <X className="w-5 h-5 text-gray-400" />
@@ -102,9 +124,8 @@ export function SearchPage() {
                 <button
                   key={term}
                   onClick={() => {
-                    const newParams = new URLSearchParams(searchParams);
-                    newParams.set('q', term);
-                    window.location.href = `/search?${newParams.toString()}`;
+                    setLocalQuery(term);
+                    setSearchParams({ q: term });
                   }}
                   className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors"
                 >
@@ -132,9 +153,8 @@ export function SearchPage() {
                 <button
                   key={term}
                   onClick={() => {
-                    const newParams = new URLSearchParams(searchParams);
-                    newParams.set('q', term);
-                    window.location.href = `/search?${newParams.toString()}`;
+                    setLocalQuery(term);
+                    setSearchParams({ q: term });
                   }}
                   className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors"
                 >

@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CreditCard, Shield, CheckCircle, ChevronLeft, Download } from 'lucide-react';
 import { useCartStore } from '@/store/cartStore';
+import { useOrderStore } from '@/store/orderStore';
 
 export function CheckoutPage() {
   const { items, totalPrice, clearCart } = useCartStore();
+  const { saveOrder } = useOrderStore();
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState('alipay');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -13,6 +15,15 @@ export function CheckoutPage() {
 
   const handlePayment = async () => {
     setIsProcessing(true);
+    const orderId = `ORD-${Date.now()}`;
+    const orderData = {
+      id: orderId,
+      items: [...items],
+      totalAmount: totalPrice,
+      paymentMethod,
+      createdAt: new Date().toISOString(),
+    };
+    saveOrder(orderData);
     await new Promise(resolve => setTimeout(resolve, 1500));
     setIsProcessing(false);
     setOrderComplete(true);
@@ -35,15 +46,15 @@ export function CheckoutPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-500">订单编号</span>
-                  <span className="font-medium">ORD-{Date.now()}</span>
+                  <span className="font-medium">{useOrderStore.getState().completedOrder?.id || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">订单金额</span>
-                  <span className="font-medium">¥{totalPrice.toFixed(2)}</span>
+                  <span className="font-medium">¥{useOrderStore.getState().completedOrder?.totalAmount.toFixed(2) || '0.00'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">下单时间</span>
-                  <span className="font-medium">{new Date().toLocaleString()}</span>
+                  <span className="font-medium">{useOrderStore.getState().completedOrder?.createdAt ? new Date(useOrderStore.getState().completedOrder!.createdAt).toLocaleString() : 'N/A'}</span>
                 </div>
               </div>
             </div>
@@ -51,7 +62,7 @@ export function CheckoutPage() {
             <div className="bg-gray-50 rounded-xl p-6 mb-8">
               <h3 className="font-semibold text-gray-900 mb-4">购买的素材</h3>
               <div className="space-y-3">
-                {items.map((item) => (
+                {useOrderStore.getState().completedOrder?.items.map((item) => (
                   <div key={item.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <img
@@ -70,7 +81,26 @@ export function CheckoutPage() {
               </div>
             </div>
 
-            <button className="w-full flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition-colors mb-4">
+            <button 
+              onClick={() => {
+                const order = useOrderStore.getState().completedOrder;
+                if (order) {
+                  const blob = new Blob([JSON.stringify({
+                    orderId: order.id,
+                    items: order.items.map(i => ({ title: i.asset.title, license: i.asset.license_info })),
+                    totalAmount: order.totalAmount,
+                    purchaseDate: order.createdAt,
+                  }, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `license-${order.id}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition-colors mb-4"
+            >
               <Download className="w-5 h-5" />
               下载授权凭证
             </button>

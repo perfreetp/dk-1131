@@ -1,15 +1,64 @@
 import { useState } from 'react';
-import { Package, Download, FileText, CheckCircle, Clock, ChevronRight } from 'lucide-react';
+import { Package, Download, FileText, CheckCircle, Clock, ChevronRight, AlertCircle } from 'lucide-react';
 import { mockOrders, mockAssets } from '@/data/mockData';
 
 export function OrdersPage() {
   const [filterStatus, setFilterStatus] = useState('all');
+  const [downloadMessage, setDownloadMessage] = useState<{ orderId: string; message: string; type: 'success' | 'error' } | null>(null);
 
   const filteredOrders = filterStatus === 'all' 
     ? mockOrders 
     : mockOrders.filter(o => o.status === filterStatus);
 
   const orderItems = mockAssets.slice(0, 2);
+
+  const handleDownload = (orderId: string, status: string) => {
+    if (status !== 'completed') {
+      setDownloadMessage({ 
+        orderId, 
+        message: '仅已完成订单可下载素材', 
+        type: 'error' 
+      });
+      setTimeout(() => setDownloadMessage(null), 3000);
+      return;
+    }
+
+    const items = orderItems;
+    
+    setDownloadMessage({ 
+      orderId, 
+      message: `正在准备 ${items.length} 个素材文件...`, 
+      type: 'success' 
+    });
+
+    setTimeout(() => {
+      const downloadData = {
+        orderId: orderId,
+        items: items.map(item => ({
+          title: item.title,
+          format: item.format,
+          fileUrl: item.file_url,
+          license: item.license_info,
+        })),
+        downloadTime: new Date().toISOString(),
+      };
+
+      const blob = new Blob([JSON.stringify(downloadData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `order-${orderId}-download-info.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setDownloadMessage({ 
+        orderId, 
+        message: `素材下载链接已生成 (${items.length} 个文件)`, 
+        type: 'success' 
+      });
+      setTimeout(() => setDownloadMessage(null), 3000);
+    }, 1000);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -84,6 +133,21 @@ export function OrdersPage() {
                   ))}
                 </div>
 
+                {downloadMessage?.orderId === order.id && (
+                  <div className={`mt-4 p-3 rounded-lg flex items-center gap-2 ${
+                    downloadMessage.type === 'success' 
+                      ? 'bg-green-50 text-green-700' 
+                      : 'bg-red-50 text-red-700'
+                  }`}>
+                    {downloadMessage.type === 'success' ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5" />
+                    )}
+                    <span className="text-sm">{downloadMessage.message}</span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between mt-6 pt-6 border-t">
                   <div>
                     <p className="text-sm text-gray-500">订单金额</p>
@@ -94,7 +158,15 @@ export function OrdersPage() {
                       <FileText className="w-4 h-4" />
                       申请发票
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                    <button 
+                      onClick={() => handleDownload(order.id, order.status)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                        order.status === 'completed'
+                          ? 'bg-primary-600 text-white hover:bg-primary-700'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                      disabled={order.status !== 'completed'}
+                    >
                       <Download className="w-4 h-4" />
                       下载素材
                     </button>
@@ -110,6 +182,12 @@ export function OrdersPage() {
               </div>
             </div>
           ))}
+
+          {filteredOrders.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              暂无订单
+            </div>
+          )}
         </div>
       </div>
     </div>

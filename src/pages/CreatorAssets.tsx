@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { LayoutDashboard, Package, ShoppingBag, DollarSign, Upload, Edit2, Trash2, Eye, Plus } from 'lucide-react';
-import { mockAssets } from '@/data/mockData';
+import { useAssetStore } from '@/store/assetStore';
+import { Asset } from '@/types';
+import { mockUsers } from '@/data/mockData';
 
 const navItems = [
   { id: 'dashboard', label: '仪表盘', icon: LayoutDashboard },
@@ -25,7 +27,8 @@ export function CreatorAssets() {
     license_info: '',
   });
 
-  const creatorAssets = mockAssets.filter(a => a.creator_id === '1');
+  const { assets, addAsset } = useAssetStore();
+  const creatorAssets = assets.filter(a => a.creator_id === '1');
 
   const filteredAssets = filterStatus === 'all' 
     ? creatorAssets 
@@ -36,6 +39,49 @@ export function CreatorAssets() {
   };
 
   const handleUpload = () => {
+    if (!uploadForm.title || !uploadForm.price) {
+      alert('请填写标题和价格');
+      return;
+    }
+
+    const newAsset: Asset = {
+      id: `new-${Date.now()}`,
+      creator_id: '1',
+      title: uploadForm.title,
+      description: uploadForm.description || '暂无描述',
+      category: uploadForm.category,
+      style: uploadForm.style,
+      format: uploadForm.format,
+      color: uploadForm.color,
+      industry: uploadForm.industry,
+      price: parseFloat(uploadForm.price),
+      license_info: uploadForm.license_info || '可商用授权',
+      preview_url: `https://neeko-copilot.bytedance.net/api/text_to_image?prompt=${encodeURIComponent(uploadForm.title)}&image_size=square`,
+      file_url: '#',
+      downloads: 0,
+      likes: 0,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      creator: mockUsers[0],
+    };
+
+    addAsset(newAsset);
+    setShowUploadModal(false);
+    setUploadForm({
+      title: '',
+      description: '',
+      category: '图标',
+      style: '扁平化',
+      format: 'SVG',
+      color: '多色',
+      industry: '商务',
+      price: '',
+      license_info: '',
+    });
+  };
+
+  const handleCancelUpload = () => {
     setShowUploadModal(false);
     setUploadForm({
       title: '',
@@ -172,6 +218,12 @@ export function CreatorAssets() {
               </div>
             ))}
           </div>
+
+          {filteredAssets.length === 0 && (
+            <div className="text-center py-16">
+              <p className="text-gray-500">暂无素材</p>
+            </div>
+          )}
         </main>
       </div>
 
@@ -181,7 +233,7 @@ export function CreatorAssets() {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">上传素材</h3>
               <button
-                onClick={() => setShowUploadModal(false)}
+                onClick={handleCancelUpload}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <span className="text-2xl">&times;</span>
@@ -190,7 +242,7 @@ export function CreatorAssets() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">素材标题</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">素材标题 *</label>
                 <input
                   type="text"
                   className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -255,7 +307,7 @@ export function CreatorAssets() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">价格</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">价格 *</label>
                   <input
                     type="number"
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -263,6 +315,41 @@ export function CreatorAssets() {
                     onChange={(e) => setUploadForm({ ...uploadForm, price: e.target.value })}
                     placeholder="¥"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">颜色</label>
+                  <select
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    value={uploadForm.color}
+                    onChange={(e) => setUploadForm({ ...uploadForm, color: e.target.value })}
+                  >
+                    <option>多色</option>
+                    <option>彩色</option>
+                    <option>单色</option>
+                    <option>蓝色</option>
+                    <option>绿色</option>
+                    <option>橙色</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">行业</label>
+                  <select
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    value={uploadForm.industry}
+                    onChange={(e) => setUploadForm({ ...uploadForm, industry: e.target.value })}
+                  >
+                    <option>商务</option>
+                    <option>科技</option>
+                    <option>电商</option>
+                    <option>金融</option>
+                    <option>医疗</option>
+                    <option>教育</option>
+                    <option>餐饮</option>
+                    <option>社交媒体</option>
+                  </select>
                 </div>
               </div>
 
@@ -288,7 +375,7 @@ export function CreatorAssets() {
 
               <div className="flex gap-4">
                 <button
-                  onClick={() => setShowUploadModal(false)}
+                  onClick={handleCancelUpload}
                   className="flex-1 px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
                 >
                   取消
